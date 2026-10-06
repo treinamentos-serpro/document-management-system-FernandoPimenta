@@ -1,10 +1,7 @@
 const { randomUUID } = require('node:crypto');
 const repository = require('../repositories/documentRepository');
-
-function publicMetadata(document) {
-  const { id, originalName, size, uploadedAt, owner } = document;
-  return { id, originalName, size, uploadedAt, owner };
-}
+const toPublicMetadata = require('./documentPresenter');
+const createServiceError = require('./serviceError');
 
 async function upload(file, owner) {
   try {
@@ -17,23 +14,23 @@ async function upload(file, owner) {
       storedName: file.filename,
       directory: file.destination,
     });
-    return publicMetadata(document);
+    return toPublicMetadata(document);
   } catch (error) {
     await repository.removeFile(file.path).catch(() => {});
-    throw Object.assign(new Error('Falha ao registrar documento.', { cause: error }), { code: 'STORAGE_ERROR' });
+    throw createServiceError('STORAGE_ERROR', 'Falha ao registrar documento.', error);
   }
 }
 
 function list(owner) {
   return repository.findByOwner(owner)
     .sort((first, second) => second.uploadedAt.localeCompare(first.uploadedAt))
-    .map(publicMetadata);
+    .map(toPublicMetadata);
 }
 
 function download(id, owner) {
   const document = repository.findById(id);
   if (!document || document.owner !== owner) {
-    throw Object.assign(new Error('Documento não encontrado.'), { code: 'DOCUMENT_NOT_FOUND' });
+    throw createServiceError('DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
   }
   return { filePath: repository.getFilePath(document), originalName: document.originalName };
 }
